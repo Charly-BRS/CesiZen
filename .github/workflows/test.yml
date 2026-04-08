@@ -1,0 +1,128 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  mobile-tests:
+    name: Mobile Tests (Jest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cesizen-mobile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: cesizen-mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --passWithNoTests
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-coverage
+          path: cesizen-mobile/coverage
+          retention-days: 5
+
+  app-tests:
+    name: App Tests (ESLint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cesizen-app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: cesizen-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm test
+
+  api-tests:
+    name: API Tests (PHPUnit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cesizen-api
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: cesizen_test
+          POSTGRES_USER: cesizen_user
+          POSTGRES_PASSWORD: cesizen_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          extensions: pgsql,pdo_pgsql,gd
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Setup environment
+        run: |
+          cp .env .env.test
+          echo "DATABASE_URL=postgresql://cesizen_user:cesizen_password@localhost:5432/cesizen_test" >> .env.test
+
+      - name: Create test database
+        run: php bin/console doctrine:database:create --env=test --if-not-exists
+        env:
+          DATABASE_URL: postgresql://cesizen_user:cesizen_password@localhost:5432/cesizen_test
+
+      - name: Run migrations
+        run: php bin/console doctrine:migrations:migrate --env=test --no-interaction
+        env:
+          DATABASE_URL: postgresql://cesizen_user:cesizen_password@localhost:5432/cesizen_test
+
+      - name: Run tests
+        run: vendor/bin/phpunit
+        env:
+          DATABASE_URL: postgresql://cesizen_user:cesizen_password@localhost:5432/cesizen_test
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-coverage
+          path: cesizen-api/var/coverage
+          retention-days: 5

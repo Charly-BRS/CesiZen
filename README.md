@@ -1,6 +1,9 @@
 # CESIZen — Application de gestion du bien-être
 
-Projet étudiant CESI — Application full-stack de gestion du bien-être mental.
+[![Tests](https://github.com/Charly-BRS/CesiZen/actions/workflows/test.yml/badge.svg)](https://github.com/Charly-BRS/CesiZen/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+Projet étudiant CESI — Application full-stack de gestion du bien-être mental avec **161 tests** automatisés et **CI/CD** GitHub Actions.
 
 ## Architecture
 
@@ -93,12 +96,50 @@ git commit -m "feat: description de la feature"
 
 ---
 
+## 🧪 Tests & CI/CD
+
+### Couverture de tests
+
+| Projet | Framework | Tests | Statut |
+|--------|-----------|-------|--------|
+| **cesizen-mobile** | Jest | 114 | ✅ Passing |
+| **cesizen-api** | PHPUnit | 47 | ✅ Passing |
+| **cesizen-app** | ESLint | - | ✅ Clean |
+| **TOTAL** | - | **161** | ✅ **All Green** |
+
+### Exécuter les tests localement
+
+```bash
+# Tests mobiles (Jest) - ~3s
+cd cesizen-mobile
+npm test
+
+# Tests app (ESLint) - ~2s
+cd cesizen-app
+npm test
+
+# Tests API (PHPUnit) en Docker - ~15s
+cd cesizen-api
+npm test
+```
+
+### GitHub Actions
+
+Tous les tests s'exécutent automatiquement sur:
+- ✅ Push vers `main` ou `develop`
+- ✅ Pull Requests
+
+Visualiser les résultats: [GitHub Actions](https://github.com/Charly-BRS/CesiZen/actions)
+
+---
+
 ## Phases du projet
 
 - [x] **Phase 1** — Infrastructure (Docker, JWT, CORS, structure de dossiers)
-- [ ] **Phase 2** — Entités Doctrine + Authentification JWT
-- [ ] **Phase 3** — Écrans métier (Login, Dashboard, Activités)
-- [ ] **Phase 4** — Tests et déploiement
+- [x] **Phase 2** — Entités Doctrine + Authentification JWT + Tests API
+- [x] **Phase 3** — Tests (161 tests finalisés et nettoyés)
+- [x] **Phase 4** — CI/CD avec GitHub Actions
+- [ ] **Phase 5** — Écrans métier (Login, Dashboard, Activités)
 
 ---
 
