@@ -1,0 +1,72 @@
+# docker-compose.yml (racine)
+# Lance l'ensemble de l'infrastructure CESIZen :
+# API Symfony + Frontend React ensemble.
+# Pour le mobile, utiliser : npx expo start dans cesizen-mobile/
+
+version: '3.9'
+
+services:
+  # ── API Symfony ──────────────────────────────────────────────
+  php-fpm:
+    build:
+      context: ./cesizen-api
+      dockerfile: docker/php/Dockerfile
+    container_name: cesizen_php
+    volumes:
+      - ./cesizen-api:/var/www/html
+    env_file:
+      - ./cesizen-api/.env
+    networks:
+      - cesizen_network
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: cesizen_postgres
+    environment:
+      POSTGRES_DB: cesizen
+      POSTGRES_USER: cesizen_user
+      POSTGRES_PASSWORD: cesizen_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cesizen_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: cesizen_nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./cesizen-api:/var/www/html
+      - ./cesizen-api/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - cesizen_network
+    depends_on:
+      - php-fpm
+
+  # ── Frontend React ────────────────────────────────────────────
+  frontend:
+    image: node:22-alpine
+    container_name: cesizen_frontend
+    working_dir: /app
+    volumes:
+      - ./cesizen-app:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+    command: sh -c "npm install && npm run dev"
+    networks:
+      - cesizen_network
+
+volumes:
+  postgres_data:
+
+networks:
+  cesizen_network:
+    driver: bridge
