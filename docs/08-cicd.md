@@ -1,165 +1,190 @@
 # 08 — CI/CD GitHub Actions
 
-Le CI/CD (Continuous Integration / Continuous Deployment) automatise les tests et le déploiement à chaque push de code. Chaque repo possède ses propres workflows.
+Le CI/CD automatise les tests et le build à chaque push de code. Les workflows sont centralisés dans le **repo racine** (monorepo `.github/workflows/`).
 
 ---
 
 ## Architecture
 
 ```
-cesizen-api/
+CesiZen-Test/  (repo racine)
 └── .github/workflows/
-    ├── test.yml              ← Déclenché sur push/PR → lance PHPUnit + PHPStan
-    └── build-and-deploy.yml  ← Déclenché sur push main → build Docker + déploiement
-
-cesizen-app/
-└── .github/workflows/
-    ├── test.yml              ← Déclenché sur push/PR → lance ESLint + TypeScript
-    └── build-and-deploy.yml  ← Déclenché sur push main → build Vite + déploiement
-
-cesizen-mobile/
-└── .github/workflows/
-    ├── test.yml              ← Déclenché sur push/PR → lance Jest + TypeScript
-    └── build-and-deploy.yml  ← Déclenché sur push main → validation + déploiement Expo
+    ├── test.yml              ← Tests automatiques (push + PR)
+    └── build-and-deploy.yml  ← Build de production (push main)
 ```
+
+> Les 3 projets (api, app, mobile) sont testés dans un seul workflow grâce aux `working-directory`.
 
 ---
 
 ## Workflow `test.yml` — Tests automatiques
 
-### Ce qui se passe à chaque push ou Pull Request
+### Déclenchement
+
+- Sur chaque `push` vers `main` ou `develop`
+- Sur chaque `pull_request` vers `main` ou `develop`
+
+### 3 jobs en parallèle
 
 ```
-Push vers main ou develop
-           │
-           ▼
-    GitHub Actions démarre
-           │
-    ┌──────┴────────────────┐
-    │                       │
-    ▼                       ▼
-[API] PHPUnit         [Mobile] Jest
-      PHPStan         TypeScript check
-           │                │
-           └───────┬────────┘
-                   ▼
-           Succès ou Échec
-           (visible dans l'onglet Actions)
+Push / PR
+    │
+    ├── job: api ────────────────────────────────────
+    │   PHP 8.4 + PostgreSQL service
+    │   composer install → migrations → phpunit
+    │
+    ├── job: app ────────────────────────────────────
+    │   Node 22
+    │   npm ci → eslint → tsc → vitest run
+    │
+    └── job: mobile ─────────────────────────────────
+        Node 22
+        npm ci → tsc --noEmit → jest
 ```
 
-### `cesizen-api` — test.yml
+### Job `api` — PHPUnit + BDD test
 
 ```yaml
-jobs:
-  api-tests:
-    runs-on: ubuntu-latest
-    services:
-      postgres:              # Base de données de test temporaire
-        image: postgres:16-alpine
-    steps:
-      - uses: actions/checkout@v6
-      - uses: shivammathur/setup-php@v2    # Installe PHP 8.4
-        with:
-          php-version: '8.4'
-          extensions: pgsql, pdo_pgsql
-          coverage: xdebug
-      - run: composer install
-      - run: php bin/console doctrine:migrations:migrate --env=test
-      - run: vendor/bin/phpunit            # Lance les tests
-      - run: vendor/bin/phpstan analyse src  # Analyse statique
+api:
+  runs-on: ubuntu-latest
+  services:
+    postgres:
+      image: postgres:16-alpine
+      env:
+        POSTGRES_DB: cesizen_test
+        POSTGRES_USER: cesizen_user
+        POSTGRES_PASSWORD: cesizen_password
+      # ⚠️ Utiliser 127.0.0.1 (pas localhost) pour les health-checks Docker
+      options: >-
+        --health-cmd pg_isready
+        --health-interval 10s
+  steps:
+    - uses: actions/checkout@v4
+    - uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.4'
+        extensions: pdo_pgsql
+    - run: composer install
+      working-directory: cesizen-api
+    - run: php bin/console doctrine:migrations:migrate --env=test --no-interaction
+      working-directory: cesizen-api
+      env:
+        DATABASE_URL: postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen_test
+    - run: vendor/bin/phpunit
+      working-directory: cesizen-api
 ```
 
-### `cesizen-mobile` — test.yml
+### Job `app` — ESLint + TypeScript + Vitest
 
 ```yaml
-jobs:
-  mobile-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run type-check    # Vérification TypeScript
-      - run: npm test -- --coverage --passWithNoTests   # Jest
+app:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: cesizen-app/package-lock.json
+    - run: npm ci
+      working-directory: cesizen-app
+    - run: npm run lint
+      working-directory: cesizen-app
+    - run: npx tsc -b --noEmit
+      working-directory: cesizen-app
+    - run: npm test
+      working-directory: cesizen-app
 ```
 
-### `cesizen-app` — test.yml
+### Job `mobile` — TypeScript + Jest
 
 ```yaml
-jobs:
-  app-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-      - run: npm ci
-      - run: npm run lint          # ESLint
-      - run: npx tsc -b --noEmit  # TypeScript
+mobile:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: cesizen-mobile/package-lock.json
+    - run: npm ci --legacy-peer-deps
+      working-directory: cesizen-mobile
+    - run: npm run type-check
+      working-directory: cesizen-mobile
+    - run: npm test
+      working-directory: cesizen-mobile
 ```
 
 ---
 
-## Workflow `build-and-deploy.yml` — Build et déploiement
+## Workflow `build-and-deploy.yml` — Build production
 
-### Ce qui se passe sur chaque push vers `main`
+### Déclenchement
+
+- Sur chaque `push` vers `main` uniquement
+
+### 2 jobs
 
 ```
-Push vers main
-      │
-      ▼
-Build (Docker image / Vite / Expo)
-      │
-      ▼
-Push image vers GHCR (ghcr.io/charly-brs/cesizen-api)
-      │
-      ▼
-Déploiement staging
-(commande à compléter selon ton hébergement)
+Push main
+    │
+    ├── job: build-app ──────────────────────────────
+    │   Node 22
+    │   npm ci → npm run build → artifact cesizen-app/dist
+    │
+    └── job: build-api ──────────────────────────────
+        Docker
+        docker build cesizen-api/docker/php/Dockerfile
 ```
 
-### Build de l'API — Image Docker vers GHCR
+### Job `build-app` — Build Vite + artifact
 
 ```yaml
-- name: Construire et pousser l'image Docker
-  uses: docker/build-push-action@v6
-  with:
-    context: .
-    file: docker/php/Dockerfile
-    push: true
-    tags: ghcr.io/charly-brs/cesizen-api:latest
+build-app:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - run: npm ci
+      working-directory: cesizen-app
+    - run: npm run build
+      working-directory: cesizen-app
+      env:
+        VITE_API_URL: http://localhost:8080/api
+    - uses: actions/upload-artifact@v4
+      with:
+        name: cesizen-app-dist
+        path: cesizen-app/dist/
+        retention-days: 7
 ```
 
-L'image est disponible sur : `ghcr.io/charly-brs/cesizen-api`
+L'artifact `cesizen-app-dist` est disponible dans l'onglet **Actions** → run → **Artifacts** pendant 7 jours.
 
----
+### Job `build-api` — Build Docker image
 
-## Secrets GitHub à configurer
+```yaml
+build-api:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - name: Build de l'image Docker PHP-FPM
+      run: docker build -t cesizen-api:latest -f docker/php/Dockerfile .
+      working-directory: cesizen-api
+```
 
-Les secrets sont des variables d'environnement chiffrées, configurées dans **Settings → Secrets and variables → Actions** de chaque repo GitHub.
-
-| Secret | Repo | Obligatoire | Rôle |
-|--------|------|-------------|------|
-| `GITHUB_TOKEN` | Tous | Automatique | Auth pour pousser vers GHCR (fourni par GitHub) |
-| `CODECOV_TOKEN` | Tous | Optionnel | Upload des rapports de couverture vers Codecov |
-| `EXPO_TOKEN` | cesizen-mobile | Optionnel | Déployer avec EAS Update (commenté par défaut) |
-| `NETLIFY_AUTH_TOKEN` | cesizen-app | Optionnel | Déployer sur Netlify (commenté par défaut) |
-| `NETLIFY_SITE_ID` | cesizen-app | Optionnel | ID du site Netlify |
-
-> **`GITHUB_TOKEN`** est créé automatiquement par GitHub pour chaque workflow. Tu n'as pas besoin de le configurer.
+> L'image est construite localement dans le runner CI pour vérifier que le Dockerfile est valide. Elle n'est pas poussée vers un registre (pas de déploiement automatique pour ce projet étudiant).
 
 ---
 
 ## Lire les résultats dans GitHub
 
-1. Va sur le repo GitHub (`github.com/Charly-BRS/cesizen-api`)
+1. Va sur le repo GitHub (`github.com/Charly-BRS/cesizen`)
 2. Clique sur l'onglet **Actions**
 3. Chaque ligne = un workflow run (vert ✅ = succès, rouge ❌ = échec)
-4. Clique sur un run pour voir le détail de chaque étape
+4. Clique sur un run pour voir les 3 jobs
 5. En cas d'erreur : clique sur l'étape en rouge pour voir les logs
 
 ### Interpréter les erreurs courantes
@@ -167,40 +192,30 @@ Les secrets sont des variables d'environnement chiffrées, configurées dans **S
 | Erreur | Cause probable | Solution |
 |--------|----------------|----------|
 | `composer install failed` | `composer.lock` pas à jour | Lancer `composer install` en local |
-| `doctrine:migrations:migrate failed` | Migration manquante ou cassée | Vérifier les migrations |
-| `phpunit: X failures` | Tests qui échouent | Lire les messages d'erreur dans les logs |
-| `phpstan: X errors` | Erreurs de typage PHP | Corriger les types dans le code |
+| `doctrine:migrations:migrate failed` | Migration cassée ou BDD inaccessible | Vérifier `DATABASE_URL` dans le job |
+| `phpunit: X failures` | Tests qui échouent | Lire les messages dans les logs |
 | `npm ci failed` | `package-lock.json` pas à jour | Lancer `npm install` en local |
 | `tsc: type errors` | Erreurs TypeScript | Corriger les types dans le code |
+| `vitest: X failures` | Tests Vitest qui échouent | Lire les messages dans les logs |
 
 ---
 
 ## Gitflow — Convention de branches
 
-Le projet suit la convention **Gitflow** :
-
 | Branche | Rôle |
 |---------|------|
-| `main` | Code en production (déclenche le build/deploy) |
+| `main` | Code stable (déclenche le build) |
 | `develop` | Intégration des nouvelles fonctionnalités |
-| `feature/nom-feature` | Développement d'une fonctionnalité |
-| `fix/nom-bug` | Correction d'un bug |
-| `test/nom-test` | Branches de tests CI/CD |
+| `feature/nom` | Développement d'une fonctionnalité |
+| `fix/nom` | Correction d'un bug |
 
-**Workflow typique :**
 ```bash
-# Créer une branche feature depuis develop
+# Workflow typique
 git checkout develop
 git checkout -b feature/ma-fonctionnalite
-
-# Développer, committer
-git add .
-git commit -m "feat: ajouter ma fonctionnalité"
+# ... développer, committer ...
 git push origin feature/ma-fonctionnalite
-
-# Créer une Pull Request develop ← feature/ma-fonctionnalite
-# → Tests automatiques se lancent
-# → Merger après validation
+# Créer une PR develop ← feature → tests se lancent automatiquement
 ```
 
 ---

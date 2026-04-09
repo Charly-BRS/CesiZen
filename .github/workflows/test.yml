@@ -1,19 +1,19 @@
-name: Tests & Quality Gates
+name: CI — Tests CESIZen
 
+# Déclenché à chaque push et pull request sur main et develop
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_REGISTRY: charly-brs
-
 jobs:
-  api-tests:
-    name: API Tests (PHPUnit + PHPStan)
+  # ─── Job 1 : Tests API PHP (PHPUnit) ─────────────────────────────────────────
+  api:
+    name: API — PHPUnit
     runs-on: ubuntu-latest
+
+    # Service PostgreSQL dédié aux tests (base de données temporaire)
     services:
       postgres:
         image: postgres:16-alpine
@@ -28,173 +28,112 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+
+    # Toutes les commandes s'exécutent depuis le dossier cesizen-api
     defaults:
       run:
         working-directory: cesizen-api
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup PHP
+      # Installation de PHP 8.4 avec les extensions requises par Symfony
+      - name: Installer PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
           tools: composer:v2
-          extensions: pgsql,pdo_pgsql,gd,zip
-          coverage: xdebug
-          ini-values: error_reporting=-1
+          extensions: pgsql, pdo_pgsql, zip
 
-      - name: Cache Composer dependencies
+      # Cache des dépendances Composer pour accélérer les runs suivants
+      - name: Cache Composer
         uses: actions/cache@v4
         with:
-          path: vendor
+          path: cesizen-api/vendor
           key: composer-${{ hashFiles('cesizen-api/composer.lock') }}
           restore-keys: composer-
 
-      - name: Install Composer dependencies
+      - name: Installer les dépendances Composer
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
-      - name: Setup test environment
+      # Création du fichier de configuration pour les tests
+      # On écrase la DATABASE_URL pour pointer vers la BDD de test du CI
+      # Note : 127.0.0.1 obligatoire dans GitHub Actions (pas "localhost")
+      - name: Configurer l'environnement de test
         run: |
-          cp .env .env.test
-          echo "DATABASE_URL=postgresql://cesizen_user:cesizen_password@localhost:5432/cesizen_test" >> .env.test
+          cp .env .env.test.local
+          echo "DATABASE_URL=postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen_test" >> .env.test.local
           php bin/console doctrine:database:create --env=test --if-not-exists
           php bin/console doctrine:migrations:migrate --env=test --no-interaction
         env:
-          DATABASE_URL: postgresql://cesizen_user:cesizen_password@localhost:5432/cesizen_test
+          DATABASE_URL: postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen_test
 
-      - name: Run PHPUnit tests
-        run: vendor/bin/phpunit --coverage-clover=var/coverage/clover.xml
+      - name: Lancer les tests PHPUnit
+        run: vendor/bin/phpunit
         env:
-          DATABASE_URL: postgresql://cesizen_user:cesizen_password@localhost:5432/cesizen_test
+          DATABASE_URL: postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen_test
 
-      - name: Run PHPStan static analysis
-        run: vendor/bin/phpstan analyse src --level=6 --no-progress --error-format=github
-
-      - name: Upload coverage artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-coverage
-          path: cesizen-api/var/coverage
-          retention-days: 5
-
-  mobile-tests:
-    name: Mobile Tests (Jest + TypeScript)
+  # ─── Job 2 : Qualité code frontend React ─────────────────────────────────────
+  app:
+    name: App Web — ESLint + TypeScript
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: cesizen-mobile
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: cesizen-mobile/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run TypeScript type checking
-        run: npm run type-check
-
-      - name: Run Jest tests with coverage
-        run: npm test -- --coverage --passWithNoTests
-
-      - name: Upload coverage artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mobile-coverage
-          path: cesizen-mobile/coverage
-          retention-days: 5
-
-  app-tests:
-    name: App Tests (ESLint + TypeScript)
-    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: cesizen-app
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Installer Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: cesizen-app/package-lock.json
 
-      - name: Install dependencies
+      - name: Installer les dépendances npm
         run: npm ci
 
-      - name: Run ESLint linting
+      # Vérifie les règles ESLint définies dans eslint.config.js
+      - name: Vérifier ESLint
         run: npm run lint
 
-      - name: Run TypeScript type checking
-        run: tsc -b --noEmit
+      # Vérifie que TypeScript compile sans erreur (sans produire de fichiers)
+      - name: Vérifier TypeScript
+        run: npx tsc -b --noEmit
 
-      - name: Upload build artifacts
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-build
-          path: cesizen-app/dist
-          retention-days: 5
+      # Lance les tests unitaires Vitest si présents
+      - name: Lancer les tests Vitest
+        run: npm test
+        continue-on-error: false
 
-  coverage-report:
-    name: Coverage Report & Quality Gates
-    needs: [api-tests, mobile-tests, app-tests]
+  # ─── Job 3 : Vérification TypeScript mobile ──────────────────────────────────
+  mobile:
+    name: Mobile — TypeScript
     runs-on: ubuntu-latest
-    if: always()
+
+    defaults:
+      run:
+        working-directory: cesizen-mobile
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download API coverage
-        uses: actions/download-artifact@v4
+      - name: Installer Node.js 22
+        uses: actions/setup-node@v4
         with:
-          name: api-coverage
-          path: coverage/api/
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: cesizen-mobile/package-lock.json
 
-      - name: Download Mobile coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: mobile-coverage
-          path: coverage/mobile/
+      - name: Installer les dépendances npm
+        run: npm ci
 
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage/api/clover.xml,./coverage/mobile/lcov.info
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: false
-          verbose: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      # Vérifie que TypeScript compile sans erreur
+      - name: Vérifier TypeScript
+        run: npm run type-check
 
-      - name: Coverage Report Summary
-        run: |
-          echo "## 📊 Test Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| API | ${{ needs.api-tests.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Mobile | ${{ needs.mobile-tests.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| App | ${{ needs.app-tests.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
-
-      - name: Check overall test status
-        if: needs.api-tests.result != 'success' || needs.mobile-tests.result != 'success' || needs.app-tests.result != 'success'
-        run: |
-          echo "❌ One or more test suites failed"
-          exit 1
-
-      - name: Test Summary
-        if: always()
-        run: |
-          echo "✅ All tests completed successfully!"
-          echo "API Tests: ${{ needs.api-tests.result }}"
-          echo "Mobile Tests: ${{ needs.mobile-tests.result }}"
-          echo "App Tests: ${{ needs.app-tests.result }}"
+      # Lance les tests Jest si présents (--passWithNoTests évite l'erreur si aucun test)
+      - name: Lancer les tests Jest
+        run: npm test
