@@ -63,8 +63,6 @@ jobs:
       # Note : 127.0.0.1 obligatoire dans GitHub Actions (pas "localhost")
       - name: Configurer l'environnement de test
         run: |
-          echo "=== PWD ===" && pwd
-          echo "=== ls ===" && ls -la
           cp .env .env.test.local
           echo "DATABASE_URL=postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen" >> .env.test.local
           php bin/console doctrine:database:create --env=test --if-not-exists
