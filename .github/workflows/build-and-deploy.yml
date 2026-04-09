@@ -64,7 +64,7 @@ jobs:
       # Build local uniquement (pas de push vers registry)
       # Pour pousser vers ghcr.io, décommenter les étapes login + push
       - name: Builder l'image Docker PHP-FPM
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: cesizen-api
           file: cesizen-api/docker/php/Dockerfile
