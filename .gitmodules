@@ -1,0 +1,11 @@
+[submodule "cesizen-api"]
+	path = cesizen-api
+	url = https://github.com/Charly-BRS/cesizen-api.git
+
+[submodule "cesizen-app"]
+	path = cesizen-app
+	url = https://github.com/Charly-BRS/cesizen-app.git
+
+[submodule "cesizen-mobile"]
+	path = cesizen-mobile
+	url = https://github.com/Charly-BRS/cesizen-mobile.git

@@ -18,6 +18,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Installer Node.js 22
         uses: actions/setup-node@v4
@@ -52,6 +54,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       # Active le builder multi-plateforme Docker Buildx
       - name: Configurer Docker Buildx
