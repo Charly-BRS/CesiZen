@@ -41,7 +41,7 @@ jobs:
       # Sauvegarde les fichiers buildés comme artifact téléchargeable
       # pendant 7 jours depuis GitHub Actions
       - name: Sauvegarder l'artifact de build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-build-${{ github.sha }}
           path: cesizen-app/dist
