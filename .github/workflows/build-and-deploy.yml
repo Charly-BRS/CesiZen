@@ -59,7 +59,7 @@ jobs:
 
       # Active le builder multi-plateforme Docker Buildx
       - name: Configurer Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # Build local uniquement (pas de push vers registry)
       # Pour pousser vers ghcr.io, décommenter les étapes login + push
