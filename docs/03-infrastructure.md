@@ -188,4 +188,49 @@ SELECT * FROM utilisateurs;
 
 ---
 
+---
+
+## Docker Compose — Production
+
+Pour la production, un fichier séparé `docker-compose.prod.yml` est disponible à la racine du projet.
+
+### Différences avec le dev
+
+| Aspect | Développement | Production |
+|--------|--------------|------------|
+| Frontend | Hot-reload Node.js | Build statique Nginx (multi-stage) |
+| PostgreSQL | Port 5432 exposé | Port non exposé (sécurité) |
+| Code PHP | Monté en volume | Copié dans l'image au build |
+| Restart | Non configuré | `unless-stopped` sur tous les services |
+| Variables | `.env` monté | `${VAR}` via fichier `.env.prod` |
+
+### Lancer en production
+
+```bash
+# 1. Copier et renseigner le fichier de variables
+cp .env.prod.example .env.prod
+# Éditer .env.prod : mots de passe, secrets, URLs
+
+# 2. Générer les clés JWT
+docker compose -f docker-compose.prod.yml run --rm php-fpm \
+  php bin/console lexik:jwt:generate-keypair --env=prod
+
+# 3. Lancer l'infrastructure
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+# 4. Jouer les migrations
+docker compose -f docker-compose.prod.yml exec php-fpm \
+  php bin/console doctrine:migrations:migrate --env=prod --no-interaction
+```
+
+### Ports exposés (prod)
+
+| Service | Port hôte | Description |
+|---------|-----------|-------------|
+| Nginx API | 8080 | API REST (`/api`) et Swagger (`/api/docs`) |
+| Frontend | 3000 | Interface React (statique Nginx) |
+| PostgreSQL | *(non exposé)* | Accessible uniquement via Docker network |
+
+---
+
 **Suite →** [04 — API Backend Symfony](./04-api-backend.md)

@@ -1,0 +1,94 @@
+# docker-compose.prod.yml
+# Configuration Docker pour la production CESIZen.
+#
+# Différences avec docker-compose.yml (dev) :
+#   - restart: unless-stopped sur tous les services (redémarrage automatique)
+#   - PostgreSQL : port non exposé à l'hôte (sécurité)
+#   - PHP-FPM : APP_ENV=prod, variables via ${VAR} (jamais en dur)
+#   - Frontend : image multi-stage (build Node → Nginx statique), pas de hot-reload
+#   - Nginx API : config identique mais sans montage du code source
+#
+# Prérequis avant le premier lancement :
+#   1. Copier .env.prod.example → .env.prod et renseigner toutes les variables
+#   2. Générer les clés JWT : php bin/console lexik:jwt:generate-keypair --env=prod
+#   3. Lancer : docker compose -f docker-compose.prod.yml up -d
+
+services:
+
+  # ── Base de données PostgreSQL ────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: cesizen_postgres_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Pas de port exposé à l'hôte en production (sécurité)
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - cesizen_prod_network
+
+  # ── API Symfony PHP-FPM ───────────────────────────────────────────────────────
+  php-fpm:
+    build:
+      context: ./cesizen-api
+      dockerfile: docker/php/Dockerfile
+    container_name: cesizen_php_prod
+    restart: unless-stopped
+    # Aucun montage de volume : le code est copié dans l'image lors du build
+    environment:
+      APP_ENV: prod
+      APP_SECRET: ${APP_SECRET}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?serverVersion=16&charset=utf8
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_PASSPHRASE: ${JWT_PASSPHRASE}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
+    depends_on:
+      - postgres
+    networks:
+      - cesizen_prod_network
+
+  # ── Nginx (reverse proxy pour l'API) ─────────────────────────────────────────
+  nginx-api:
+    image: nginx:alpine
+    container_name: cesizen_nginx_prod
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./cesizen-api/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Nginx doit accéder aux fichiers statiques de Symfony (public/)
+      # En production, on monte uniquement le dossier public
+      - ./cesizen-api/public:/var/www/html/public:ro
+    depends_on:
+      - php-fpm
+    networks:
+      - cesizen_prod_network
+
+  # ── Frontend React (build statique servi par Nginx) ───────────────────────────
+  frontend:
+    build:
+      context: ./cesizen-app
+      dockerfile: Dockerfile
+      args:
+        # L'URL de l'API est injectée au moment du build Vite
+        VITE_API_URL: ${VITE_API_URL}
+    container_name: cesizen_frontend_prod
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - cesizen_prod_network
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  # Volume nommé pour les données PostgreSQL (persiste entre les redémarrages)
+  postgres_prod_data:
+
+# ── Réseau ────────────────────────────────────────────────────────────────────
+networks:
+  cesizen_prod_network:
+    driver: bridge
