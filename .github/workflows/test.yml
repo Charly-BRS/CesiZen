@@ -64,16 +64,16 @@ jobs:
       - name: Configurer l'environnement de test
         run: |
           cp .env .env.test.local
-          echo "DATABASE_URL=postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen_test" >> .env.test.local
+          echo "DATABASE_URL=postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen" >> .env.test.local
           php bin/console doctrine:database:create --env=test --if-not-exists
           php bin/console doctrine:migrations:migrate --env=test --no-interaction
         env:
-          DATABASE_URL: postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen_test
+          DATABASE_URL: postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen
 
       - name: Lancer les tests PHPUnit
         run: vendor/bin/phpunit
         env:
-          DATABASE_URL: postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen_test
+          DATABASE_URL: postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen
 
   # ─── Job 2 : Qualité code frontend React ─────────────────────────────────────
   app:
