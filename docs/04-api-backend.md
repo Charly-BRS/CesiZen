@@ -70,6 +70,9 @@ Représente un utilisateur de l'application.
 | `prenom` | VARCHAR(100) | Prénom | Obligatoire |
 | `nom` | VARCHAR(100) | Nom de famille | Obligatoire |
 | `isActif` | BOOLEAN | Compte actif/désactivé | Défaut: `true` |
+| `dateDesactivation` | TIMESTAMP | Date de désactivation RGPD | Nullable — rempli à la désactivation |
+| `resetPasswordToken` | VARCHAR(64) | Token hex de réinitialisation | Nullable — valable 1 heure |
+| `resetPasswordTokenExpiry` | TIMESTAMP | Expiration du token | Nullable |
 | `createdAt` | TIMESTAMP | Date de création | Auto-rempli |
 
 **Relations :**
@@ -252,6 +255,11 @@ API Platform 3 génère automatiquement tous les endpoints CRUD à partir des an
 | POST | `/api/auth/login` | Public | Connexion → retourne un token JWT |
 | POST | `/api/auth/register` | Public | Inscription d'un nouvel utilisateur |
 | POST | `/api/auth/change-password` | Connecté | Changer son mot de passe |
+| POST | `/api/auth/forgot-password` | Public | Envoie un email avec un lien de réinitialisation (valable 1h) |
+| POST | `/api/auth/reset-with-token` | Public | Réinitialise le MDP avec le token reçu par email |
+| POST | `/api/auth/set-role` | Admin | Définir les rôles d'un utilisateur |
+| POST | `/api/auth/reset-password` | Admin | Réinitialiser le MDP d'un utilisateur sans token |
+| POST | `/api/auth/desactiver-compte` | Connecté | Désactiver son compte (RGPD — suppression définitive après 30 jours) |
 | **Utilisateurs** ||||
 | GET | `/api/users` | Admin | Liste tous les utilisateurs |
 | GET | `/api/users/{id}` | Admin ou soi-même | Détail d'un utilisateur |

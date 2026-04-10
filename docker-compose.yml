@@ -48,6 +48,18 @@ services:
     depends_on:
       - php-fpm
 
+  # ── Mailpit (serveur SMTP de dev — intercepte tous les mails) ────────────────
+  # Interface web : http://localhost:8025
+  # SMTP écouté sur le port 1025 (utilisé par Symfony Mailer via MAILER_DSN)
+  mailpit:
+    image: axllent/mailpit
+    container_name: cesizen_mailpit
+    ports:
+      - "8025:8025"  # Interface web Mailpit
+      - "1025:1025"  # SMTP
+    networks:
+      - cesizen_network
+
   # ── Frontend React ────────────────────────────────────────────
   frontend:
     image: node:22-alpine

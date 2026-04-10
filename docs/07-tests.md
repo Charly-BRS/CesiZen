@@ -51,7 +51,8 @@ tests/
 └── Functional/
     ├── AuthEndpointTest.php                  ← 7 tests : register, login
     ├── BreathingExerciseEndpointTest.php     ← 5 tests : liste publique, CRUD protégé
-    └── ArticleEndpointTest.php               ← 5 tests : visibilité, droits admin
+    ├── ArticleEndpointTest.php               ← 5 tests : visibilité, droits admin
+    └── ResetPasswordEndpointTest.php         ← 9 tests : forgot-password + reset-with-token
 ```
 
 ### Ce qui est testé (exemples)

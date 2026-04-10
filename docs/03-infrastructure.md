@@ -7,7 +7,7 @@ Docker orchestre tous les services du projet. Un seul fichier `docker-compose.ym
 ## Vue d'ensemble des services
 
 ```
-docker-compose.yml (racine)
+docker-compose.yml (dev — racine)
 │
 ├── nginx          ← Serveur web, reçoit les requêtes HTTP sur :8080
 │     └── proxy → php-fpm:9000
@@ -15,8 +15,14 @@ docker-compose.yml (racine)
 ├── php-fpm        ← Exécute le code PHP Symfony
 │     └── connexion → postgres:5432
 │
-└── postgres       ← Base de données PostgreSQL 16
-      └── volume postgres_data (persistant)
+├── postgres       ← Base de données PostgreSQL 16
+│     └── volume postgres_data (persistant)
+│
+├── frontend       ← Dev server Vite React (hot-reload) sur :5173
+│
+└── mailpit        ← Serveur SMTP de dev — intercepte les emails sur :8025
+      SMTP  → port 1025 (utilisé par Symfony Mailer)
+      Web UI → http://localhost:8025
 ```
 
 ---
@@ -118,6 +124,8 @@ cp .env.example .env
 | `JWT_PASSPHRASE` | *(hash 64 chars)* | Mot de passe pour chiffrer les clés RSA JWT |
 | `JWT_TTL` | `900` | Durée de vie du token JWT en secondes (900 = 15 minutes) |
 | `CORS_ALLOW_ORIGIN` | `^https?://(localhost\|127\.0\.0\.1)(:[0-9]+)?$` | Origines autorisées pour les requêtes CORS depuis le navigateur |
+| `MAILER_DSN` | `smtp://mailpit:1025` | Serveur SMTP. En dev : Mailpit. En prod : remplacer par un vrai serveur |
+| `FRONTEND_URL` | `http://localhost:5173` | URL du frontend — injectée dans les emails (liens de réinitialisation) |
 
 > **Attention** : Dans `DATABASE_URL`, le hostname est `postgres` (nom du service Docker), **pas** `localhost`. Si tu lances Symfony hors Docker, remplace par `localhost`.
 
