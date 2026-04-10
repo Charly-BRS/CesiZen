@@ -65,6 +65,8 @@ jobs:
         run: |
           cp .env .env.test.local
           echo "DATABASE_URL=postgresql://cesizen_user:cesizen_password@127.0.0.1:5432/cesizen?serverVersion=16&charset=utf8" >> .env.test.local
+          # Désactive le transport email en CI (Mailpit n'est pas disponible dans GitHub Actions)
+          echo "MAILER_DSN=null://null" >> .env.test.local
           php bin/console doctrine:database:create --env=test --if-not-exists
           php bin/console doctrine:migrations:migrate --env=test --no-interaction
         env:
