@@ -35,6 +35,8 @@ EXPO_PUBLIC_API_URL=http://192.168.1.XX:8080/api
 
 Le préfixe `EXPO_PUBLIC_` est obligatoire pour qu'Expo expose la variable au code JavaScript.
 
+> **Timeout réseau** : l'API Docker en développement peut être lente (premier démarrage, machine peu puissante). Le timeout Axios est fixé à **30 secondes** dans `src/services/api.ts`. Si tu vois des erreurs `ECONNABORTED`, vérifie d'abord que Docker est démarré et que les containers sont bien en route (`docker compose up -d`).
+
 ---
 
 ## 6.2 Structure `src/`
