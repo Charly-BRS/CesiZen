@@ -267,8 +267,8 @@ API Platform 3 génère automatiquement tous les endpoints CRUD à partir des an
 | PATCH | `/api/users/{id}` | Admin ou soi-même | Modifier un utilisateur |
 | DELETE | `/api/users/{id}` | Admin | Supprimer un utilisateur |
 | **Articles** ||||
-| GET | `/api/articles` | Public (publiés seulement) | Liste des articles publiés |
-| GET | `/api/articles/{id}` | Public (publiés seulement) | Détail d'un article |
+| GET | `/api/articles` | Connecté (publiés seulement) | Liste des articles publiés |
+| GET | `/api/articles/{id}` | Connecté (publiés seulement) | Détail d'un article |
 | POST | `/api/articles` | Admin | Créer un article |
 | PATCH | `/api/articles/{id}` | Admin ou auteur | Modifier un article |
 | DELETE | `/api/articles/{id}` | Admin | Supprimer un article |

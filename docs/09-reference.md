@@ -7,7 +7,7 @@ Toutes les commandes et informations essentielles en un seul endroit.
 ## Démarrage du projet (tout lancer)
 
 ```bash
-# 1. Infrastructure (API + BDD + Nginx)
+# 1. Infrastructure (API + BDD + Nginx + Frontend + Mailpit)
 cd "CesiZen -Test"
 docker compose up --build
 
@@ -16,10 +16,7 @@ docker exec cesizen_php php bin/console doctrine:migrations:migrate --no-interac
 docker exec cesizen_php php bin/console doctrine:fixtures:load --no-interaction
 docker exec cesizen_php php bin/console lexik:jwt:generate-keypair
 
-# 3. Frontend web (dans un nouveau terminal)
-cd cesizen-app && npm install && npm run dev
-
-# 4. Mobile (dans un nouveau terminal)
+# 3. Mobile (dans un nouveau terminal)
 cd cesizen-mobile && npm install && npx expo start
 ```
 
@@ -148,6 +145,8 @@ cd cesizen-app && npx tsc -b --noEmit
 | `JWT_PASSPHRASE` | *(hash 64 chars)* | Passphrase des clés RSA JWT |
 | `JWT_TTL` | `900` | Durée du token JWT (secondes) |
 | `CORS_ALLOW_ORIGIN` | `^https?://(localhost\|127\.0\.0\.1)(:[0-9]+)?$` | Origines CORS autorisées |
+| `MAILER_DSN` | `smtp://mailpit:1025` | Serveur SMTP. En dev : Mailpit. En prod : remplacer par un vrai serveur |
+| `FRONTEND_URL` | `http://localhost:5173` | URL du frontend — injectée dans les emails de réinitialisation |
 
 ### `cesizen-app/.env.local`
 
@@ -179,7 +178,12 @@ cd cesizen-app && npx tsc -b --noEmit
 | POST | `/api/auth/login` | Public |
 | POST | `/api/auth/register` | Public |
 | POST | `/api/auth/change-password` | Connecté |
-| GET | `/api/articles` | Public (publiés) |
+| POST | `/api/auth/forgot-password` | Public |
+| POST | `/api/auth/reset-with-token` | Public |
+| POST | `/api/auth/set-role` | Admin |
+| POST | `/api/auth/reset-password` | Admin |
+| POST | `/api/auth/desactiver-compte` | Connecté |
+| GET | `/api/articles` | Connecté (publiés) |
 | GET/POST/PATCH/DELETE | `/api/articles/{id}` | Voir chapitre 04 |
 | GET | `/api/categories` | Public |
 | GET | `/api/breathing_exercises` | Public |
@@ -249,7 +253,8 @@ cd cesizen-app && npx tsc -b --noEmit
 |---------|-----|-------|
 | API REST | http://localhost:8080/api | Tous les endpoints |
 | Swagger UI | http://localhost:8080/api/docs | Documentation interactive |
-| Frontend React | http://localhost:5173 | Hot reload activé |
+| Frontend React | http://localhost:5173 | Hot reload activé (inclus dans docker compose) |
+| Mailpit (emails) | http://localhost:8025 | Interface web pour voir les emails de dev |
 | PostgreSQL | localhost:5432 | Accès direct BDD |
 | Expo DevTools | http://localhost:8081 | Quand `npx expo start` |
 
